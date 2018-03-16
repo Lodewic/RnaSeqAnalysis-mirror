@@ -1,6 +1,6 @@
-Package: DESeq2Pipeline
+Package: RnaSeqAnalysis
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Collection of rna-seq analysis to use in calculation pipeline
 Version: 0.1.0
 Author: Who wrote it
 Maintainer: The package maintainer <yourself@somewhere.net>
