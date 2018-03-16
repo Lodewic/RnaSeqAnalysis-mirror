@@ -1,0 +1,15 @@
+dataDir = '../data/'
+outDir  = '../data/out/'
+
+countTable = '../data/KIP_Liver_countTable.txt'
+colData    = '../data/KIP_Liver_colData.txt'
+
+rule deseq_transform:
+  input:
+    countTable = countTable,
+    colData    = colData
+  output:
+    outDir + 'KIP_Liver_countTable-scale.txt'
+  shell:
+    'R -e "library(DEseq2Pipeline); deseq_transform(\\"{input.countTable}\\",\\"{input.colData}\\")" ' 
+
