@@ -11,12 +11,12 @@
 #' @export
 #'
 #' 
-deseq_gene_filter <- function(dds, flist)
+deseq_gene_filter <- function(dds, flist, normalized=FALSE)
 {
   require(genefilter)
 
   # Read data files
-  countTable <- counts(dds, normalized = TRUE)
+  countTable <- counts(dds, normalized)
   
   # Apply filters
   filters        <- filterfun(flist)
