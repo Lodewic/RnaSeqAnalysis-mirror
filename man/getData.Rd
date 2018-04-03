@@ -4,17 +4,17 @@
 \alias{getData}
 \title{Title}
 \usage{
-getData(countdata, coldata, annotationdata = NULL, species = NULL,
-  key.type = NULL)
+getData(countdata, coldata, species, keytype, annotationdata = NULL,
+  calc.disps = TRUE, calc.vst = FALSE)
 }
 \arguments{
 \item{countdata}{Filename of count / expression data in a format where rownames are genes/features and columns are samples.}
 
 \item{coldata}{Filename of column / sample data. Sample data has samples in the rows and features in the columns. The rows of colData should preferably equal the column names of the count data in the same order.}
 
-\item{annotationdata}{(OPTIONAL) Filename of annotation data with gene names in the rownames, equal to the count data, and different annotations in the columns. E.g. ENSEMBL gene id's in the rownames, and SYMBOL and Entrez Id's in other columns.}
-
 \item{species}{The species of the gene annotations, e.g. Mouse, Human, Rat, etc.}
+
+\item{annotationdata}{(OPTIONAL) Filename of annotation data with gene names in the rownames, equal to the count data, and different annotations in the columns. E.g. ENSEMBL gene id's in the rownames, and SYMBOL and Entrez Id's in other columns.}
 
 \item{key.type}{The gene id key, e.g. ENSEMBL, ENTREZ or SYMBOL etc.}
 }

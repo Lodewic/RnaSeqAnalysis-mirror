@@ -1,0 +1,14 @@
+,Description,Value
+1,Design,~DietTime
+2,Comparison,DietTime chow_06wk HFD_06wk
+3,Comparison,DietTime chow_12wk HFD_12wk
+4,Comparison,DietTime chow_18wk HFD_18wk
+5,Comparison,DietTime chow_24wk HFD_24wk
+6,Comparison,DietTime chow_00wk chow_06wk
+7,Comparison,DietTime chow_00wk chow_12wk
+8,Comparison,DietTime chow_00wk chow_18wk
+9,Comparison,DietTime chow_00wk chow_24wk
+10,Comparison,DietTime chow_00wk HFD_06wk
+11,Comparison,DietTime chow_00wk HFD_12wk
+12,Comparison,DietTime chow_00wk HFD_18wk
+13,Comparison,DietTime chow_00wk HFD_24wk

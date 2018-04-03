@@ -4,8 +4,7 @@ Title: Collection of rna-seq analyses to use in calculation and analysis pipelin
 Version: 0.1.0
 Authors@R: c(
     person("Lodewic", "van Twillert", , "lodewic.vantwillert@tno.nl", role = c("aut", "cre")),
-    person("Everton", "Souto Lima", , "everton.soutolima@tno.nl", role = c("aut", "cre")))
-Maintainer: Everton Souto Lima, Lodewic van Twillert
+    person("Everton", "Souto Lima", ,"everton.soutolima@tno.nl", role = "aut"))
 Description: Collection of functions used for rna-seq and microbiome analysis.
 License: License?
 Encoding: UTF-8

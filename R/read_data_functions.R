@@ -11,7 +11,10 @@
 #' @export
 #'
 #' @examples
-getData <- function(countdata, coldata, annotationdata = NULL, species = NULL, key.type = NULL) {
+getData <- function(countdata, coldata, species, keytype, annotationdata = NULL, calc.disps = TRUE, calc.vst = FALSE) {
+  require(DESeq2)
+  require(AnnotationDbi)
+  
   # Read count and sample data - should always be given
   counts.out <- ReadCounts(countdata)
   coldata.out <- ReadColData(coldata)
@@ -22,17 +25,22 @@ getData <- function(countdata, coldata, annotationdata = NULL, species = NULL, k
   if (ifelse(class(tryAnnotation) == "try-error", FALSE, tryAnnotation)) annotation.out <- ReadAnnotation(annotationdata)
   # if (!is.null(annotationdata)) annotation.out <- ReadAnnotation(annotationdata)
   # If no annotation data is given - annotate counts using the AnnotationDbi package
-  else annotation.out <- AnnotateCounts(counts.out, species = species, key.type = key.type)
+  else annotation.out <- AnnotateCounts(counts.out, species = species, key.type = keytype)
   
   # Make into DESeq dataset
   #   Always calculate dispersions and variance-stabilized counts
   dds <- DESeqDataSetFromMatrix(counts.out, coldata.out, ~1)
   dds <- estimateSizeFactors(dds)
-  mcols(dds)$vst <- assay(varianceStabilizingTransformation(dds))
-  # Estimating dispersions before the vst sometimes given an error... not sure why.
-  dds <- estimateDispersions(dds)
-  # Add annotation data to the metadata of the dds object
-  mcols(dds)$annotation <- annotation.out
+  
+  if (calc.vst) {
+      # Calculate variance-stabilized counts
+      mcols(dds)$vst <- assay(varianceStabilizingTransformation(dds))
+      # Add annotation data to the metadata of the dds object
+      mcols(dds)$annotation <- annotation.out
+  }
+  #     # Estimating dispersions before the vst sometimes given an error... not sure why.
+  if (calc.disps) dds <- estimateDispersions(dds)
+  
   
   # Return a DESeqDataset with annotation data in the metadata (mcols())
   return(dds)
