@@ -32,7 +32,7 @@ DESeqAnalysis <- function(dds, comparisonFile, annotationData = NULL) {
   # independent filtering is applied to all contrasts at once
   #   For every model we then guarantee the same minimal expression cutoff
   #   And more robust p-value adjustment to correct for multiple (ALL) comparisons
-  dds.contrasts <- AdjustDESeqContrasts(dds.contrasts)
+  dds.contrasts <- lapply(dds.contrasts, AdjustDESeqContrasts)
   
   # Return a list of models and a list of contrasts separately
   #   TODO: Optionally make named lists if models/contrasts have names
