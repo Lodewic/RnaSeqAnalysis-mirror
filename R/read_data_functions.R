@@ -86,7 +86,6 @@ sepguesser <- function(file, sep_list = c(",", "\t", ";"," ")) {
 #' Read rna-seq count data
 #' 
 #' @param COUNTFILE 
-#'
 #' @param sep 
 #' @param sort.samples 
 #'
@@ -98,7 +97,8 @@ ReadCounts <- function(COUNTFILE, sep = NULL, sort.samples = TRUE) {
   
   #   Try() so that duplicate row.names may be caught if needed
   countTable <- try(read.csv(COUNTFILE, header = T,
-                             stringsAsFactors = T,row.names = 1, sep = sep),
+                             stringsAsFactors = T,row.names = 1, sep = sep, 
+                             check.names = F),
                     silent = TRUE)
   
   # Try to handle duplicate rownames
@@ -188,13 +188,12 @@ ReadColData <- function(COLDATAFILE, sep = NULL, sort.samples = TRUE) {
 
 #' Read comparison file
 #'
-#' @param COMPARISONFILE 
-#' @param sep 
+#' @param COMPARISONFILE Path to comparison file in .csv format(!)
+#' @param sep (Optional) Separator of file. Determined automatically if not given.
 #'
 #' @return
 #' @export
 #'
-#' @examples
 ReadComparisons <- function(COMPARISONFILE, sep = NULL) {
   #######################################################
   # NOTE:
@@ -255,6 +254,51 @@ LoadAnnotationDb <- function(gene.species) {
     # Return NULL if not found
     return(NULL)
   }
+}
+
+#' Parse rna-seq comparison file
+#'
+#' @param compData Comparison data in data.frame from \code{\link{ReadComparisons}}
+#'
+#' @return list of designs and contrasts
+#' @export
+#'
+ParseComparisons <- function(compData) {
+  # Parse a data.frame of comparisons (from ReadComparisons())
+  # Returns a list of designs and contrasts
+  # 
+  # Note: This will be replaced fairly soon if the input of 
+  # comparisons is updated - which definitely needs to happen
+  ############################################################
+  # Initialize
+  designs <- c()
+  contrasts <- list()
+  cntrst.tmp <- c()
+  n.designs <- 0
+  # Loop over comparison data
+  for (i in 1:nrow(compData)) {
+    # If the row is a design parameter
+    if (tolower(compData$Description[i]) == 'design') {
+      # Then add it to the vector of design formulae
+      designs <- c(designs, as.formula(compData$Value[i]))
+      
+      # If it not the first design - add an element to the contrasts list
+      if (n.designs > 0) contrasts <- c(contrasts, list(cntrst.tmp))
+      n.designs <- n.designs + 1
+      # Reinitialize the contrasts for the next design
+      cntrst.tmp <- c()
+      # If the row is a comparison / contrast
+    } else if (tolower(compData$Description[i]) == 'comparison') {
+      # Add contrast to temp contrast vec - for the current design only
+      cntrst.tmp <- c(cntrst.tmp, compData$Value[i])
+    }
+  }
+  # Multiple contrast vectors in a list
+  #   As many elements as there are designs
+  contrasts <- c(contrasts, list(cntrst.tmp))
+  
+  # Return named list of designs and contrasts
+  return(list(designs = designs, contrasts = contrasts))
 }
 
 #' Annotate count data with AnnotationDbi

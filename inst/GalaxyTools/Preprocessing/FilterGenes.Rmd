@@ -1,0 +1,226 @@
+---
+title: 'RnaSeq: Filter genes by different criteria'
+author: "Lodewic van Twillert"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    fig_caption: yes
+    theme: cerulean
+    self_contained: true
+params:
+  echo:
+    value: FALSE
+  inputData:
+    label: "Input .Rdata file containing DESeqDataSet (dds)"
+    value: "ReportOutput/ReadDataOutput.RData"
+    input: file
+  filterMean:
+    label: "Filter by normalised mean expression"
+    value: 30
+    input: slider
+    min: 0
+    max: 100
+  filterPrevalence_Proportion:
+    label: "Gene expression prevalence. Percentage of samples greater than cutoff"
+    value: 0
+    input: slider
+    min: 0
+    max: 1
+  filterPrevalence_Expression:
+    label: "Set prevalence filter cutoff expression"
+    value: 0
+    input: slider
+    min: 0
+    max: 100
+  filterIQR:
+    label: "Filter by inter-quartile range"
+    value: 0
+    input: slider
+    min: 0
+    max: 200
+  outputdir:
+    label: "Sub-directory of this document for output files"
+    value: "ReportOutput/"
+  output:
+    label: "Output .Rdata file"
+    value: "GeneFilterOutput.RData"
+---
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = params$echo)
+library(DT)
+library(RnaSeqAnalysis)
+library(DESeq2)
+library(genefilter)
+library(tidyverse)
+library(plotly)
+```
+
+# Input options
+
+```{r}
+knitr::kable(data.frame(Value = unlist(params)))
+```
+
+```{r Load input data}
+load(params$inputData)
+if (!exists("dds")) stop("Cannot find DESeqDataSet object called dds in input data!")
+```
+
+```{r Set up filter functions}
+require(genefilter)
+
+# Setup gene filter
+#   List of filters - set redundant filter to NA
+filter.list <- list(
+  # Set mean expression filter
+  Mean = function(x) gene_filter_mean(x, cutoff = params$filterMean),
+  
+  # Set prevalence filter
+  Prevalence = function(x) gene_filter_prevalence(x, cutoff =  params$filterPrevalence_Expression,
+                                            threshold = params$filterPrevalence_Proportion),
+  # Set IQR filter
+  IQR = function(x) iqr(x) > params$filterIQR
+)
+
+# filter.list <- filter.list[-which(is.na(filter.list))]
+
+# Filter genes by mean and prevalence
+dds_before <- dds
+dds <- deseq_gene_filter(dds, flist = filter.list, normalized = TRUE)
+```
+
+# Filtered data
+
+A multitude of filter criteria are applied to the gene expression data. Here we summarise the filter results of individual filters and the final result.
+
+```{r Table of counts before/after}
+filter.result <- data.frame(
+      Gene = rownames(dds_before),
+      Dispersion = mcols(dds_before)$dispersion,
+      IQR = rowIQRs(counts(dds_before, normalized = TRUE)),
+      Mean = mcols(dds_before)$baseMean) %>%
+      mutate(RemovedMean = Mean < params$filterMean,
+             RemovedIQR = IQR < params$filterIQR,
+             RemovedPrevalence = !apply(counts(dds_before, normalized = TRUE), 1, filter.list$Prevalence),
+             Removed = RemovedMean | RemovedIQR | RemovedPrevalence)
+
+knitr::kable(filter.result %>% select(RemovedMean, RemovedIQR, RemovedPrevalence, Removed) %>%
+        summarise_all(sum))
+```
+
+```{r Filter results as text, results='asis'}
+MeanRemoved <- sum(filter.result$RemovedMean)
+IQRRemoved <- sum(filter.result$RemovedIQR)
+PrevalenceRemoved <- sum(filter.result$RemovedPrevalence)
+TotalRemoved <- sum(filter.result$Removed)
+n.samples <- nrow(filter.result)
+  
+out.input <- sprintf("Total number of genes: %i\nTotal samples: %i\n",
+                     nrow(dds_before$OutlierExpr),
+                     ncol(dds_before$OutlierExpr))
+                     
+  
+out.filter <- sprintf("Removed (mean): \t%i\t(%1.2f%%)\n\nRemoved (IQR): \t\t%i\t(%1.2f%%)\n\nRemoved (Prevalence): \t%i\t(%1.2f%%)\n\n**Filtered total**: \t%i\t(%1.2f%%)\n\nRemaining genes: %i",
+                 MeanRemoved, 
+                 MeanRemoved / n.samples * 100,
+                 IQRRemoved,
+                 IQRRemoved / n.samples * 100,
+                 PrevalenceRemoved,
+                 PrevalenceRemoved / n.samples * 100,
+                 TotalRemoved,
+                 TotalRemoved / n.samples * 100,
+                 sum(!filter.result$Removed))
+
+cat(out.input, out.filter, sep = "\n\n")
+```
+
+## Filter plots {.tabset}
+
+You may want to change some options based on the current filtering results to tweak the filter cutoff values. 
+These filter plots may help with setting the right filter options.
+
+### Mean filter
+
+Filter by normalized mean expression.
+
+Require that **`Mean expression > params$filterMean)`**.
+
+```{r}
+gene.means <- apply(counts(dds_before, normalized = TRUE), 1, mean)
+min.means <- seq(0, 100, length.out = 500)
+num.removed <- sapply(min.means,
+                      function(x) sum(gene.means < x))
+prcnt.removed <- num.removed / length(gene.means) * 100
+
+which.num.removed <- sum(gene.means <= params$filterMean)
+which.prcnt.removed <- which.num.removed / length(gene.means) * 100
+
+gg.mean <- data.frame(MinMean = min.means, PrcntRemoved = prcnt.removed,
+           SumRemoved = num.removed, 
+           Removed = min.means < params$filterMean) %>%
+  ggplot(aes(x = MinMean, y = PrcntRemoved, col = Removed)) +
+  geom_line() +
+  geom_vline(xintercept = params$filterMean, color = "black") +
+  geom_point(aes(x = params$filterMean, y = which.prcnt.removed), color = "red") +
+  geom_text(aes(x = 75, y = which.prcnt.removed,
+                label = sprintf("Removed: %i (%1.2f%%)",
+                                which.num.removed,
+                                which.prcnt.removed)),
+            color = "black") +
+  scale_colour_manual(values = c("cyan", "red")) + 
+  ggtitle("Filter by mean expression")
+
+ggplotly(gg.mean)
+```
+
+### IQR filter
+
+Filter by inter-quartile range. I.e. the difference between the 25th and 75th percentile.
+
+Filter by **`IQR > params$filterIQR`.
+
+```{r}
+gene.iqr <- rowIQRs(counts(dds, normalized = TRUE))
+min.iqr <- seq(0, 100, length.out = 500)
+num.removed <- sapply(min.iqr,
+                      function(x) sum(gene.iqr < x))
+prcnt.removed <- num.removed / length(gene.iqr) * 100
+
+which.num.removed <- sum(gene.iqr < params$filterIQR)
+which.prcnt.removed <- which.num.removed / length(gene.iqr) * 100
+
+gg.iqr <- data.frame(MinIQR = min.iqr, PrcntRemoved = prcnt.removed,
+           SumRemoved = num.removed, 
+           Removed = min.iqr < params$filterIQR) %>%
+  ggplot(aes(x = min.iqr, y = PrcntRemoved, col = Removed)) +
+  geom_line() +
+  geom_vline(xintercept = params$filterIQR, color = "black") +
+  geom_point(aes(x = params$filterIQR, y = which.prcnt.removed), color = "red") +
+  geom_text(aes(x = 75, y = which.prcnt.removed,
+                label = sprintf("Removed: %i (%1.2f%%)",
+                                which.num.removed,
+                                which.prcnt.removed)),
+            color = "black") +
+  scale_colour_manual(values = c("cyan", "red")) + 
+  ggtitle("Filter by inter-quartile range")
+
+ggplotly(gg.iqr)
+```
+
+### Prevalence filter
+
+Plot coming soon-ish.
+
+
+# Output data
+
+Output data to **`r file.path(params$outputdir, params$output)`**
+
+```{r}
+if (!dir.exists(params$outputdir)) dir.create(params$outputdir)
+save(dds, file = file.path(params$outputdir, params$output))
+```

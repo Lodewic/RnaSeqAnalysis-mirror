@@ -1,0 +1,134 @@
+---
+title: 'RnaSeq: Read input data to DESeqDataSet'
+author: "Lodewic van Twillert"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    fig_caption: yes
+    theme: cerulean
+    self_contained: true
+params:
+  echo:
+    value: FALSE
+    input: checkbox
+  coldata:
+    label: "Coldata file"
+    value: "InputFiles/HEEL_ColData.csv"
+    input: file
+  countdata:
+    label: "Count file"
+    value: "InputFiles/HEEL_Counts.csv"
+    input: file
+  annotationdata:
+    label: "Gene annotation file"
+    value: NA
+    input: file
+  species:
+    label: "Gene species"
+    value: "Mouse"
+    input: select
+    choices: [Human, Mouse, Rat]
+  keytype:
+    label: "Gene mapping keytype"
+    value: "ENSEMBL"
+    input: select
+    choices: [ENSEMBL, SYMBOL, Entrez]
+  outputdir:
+    label: "Sub-directory of this document for output files"
+    value: "ReportOutput/"
+  output:
+    label: "Output .Rdata file"
+    value: "ReadDataOutput.RData"
+---
+
+```{r include = FALSE}
+# If you are using knit_with_params() to render this document with a little shiny app for parameter input
+# You may have to reset the max requestsize in Shiny to upload files larger than 5mb.
+# Run the following command in your console or other environment to allow larger than 5mb files.
+
+# options(shiny.maxRequestSize=30*1024^2)
+```
+
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = params$echo)
+library(DT)
+library(RnaSeqAnalysis)
+library(DESeq2)
+```
+
+# Input options
+
+```{r}
+knitr::kable(data.frame(Value = unlist(params)))
+```
+
+# Input data
+
+```{r Read input data}
+# Use general functions to read rnaSeq data
+# The separator is determined programmatically
+#   CURRENTLY ONLY FOR .CSV FILES
+countTable <- ReadCounts(params$countdata, sep = NULL, sort.samples = TRUE)
+colData <- ReadColData(params$coldata, sep = NULL, sort.samples = TRUE)
+```
+
+```{r Annotate rnaSeq data}
+# If ANNOTATIONFILE is not specified then we use databases for annotation
+# This requires the SPECIES (i.e. 'Human', 'Mouse', etc.)
+# And the KEYTYPE (i.e. ENSEMBL, SYMBOL etc.)
+if (try(is.na(params$annotationdata)) | params$annotationdata == "NA") {
+  annotationData <- AnnotateCounts(countTable,
+                                   species = params$species,
+                                   key.type = params$keytype)
+# Otherwise we read the data from the specified ANNOTATIONFILE
+} else annotationData <- ReadAnnotation(params$annotationdata)
+```
+
+```{r Create DESeqDataSet}
+dds <- DESeqDataSetFromMatrix(countTable, colData, design = ~1)
+dds <- estimateSizeFactors(dds)
+dds <- estimateDispersions(dds)
+```
+
+### Sample data
+
+```{r Show column data}
+DT::datatable(data.frame(colData(dds)), options = list(scrollX = TRUE))
+```
+
+Display of **sample data** with a total of `r nrow(colData)` samples with `r ncol(colData)` features. The samples features are named,
+
+`r paste0("\t* ", names(colData), collapse = "\n")`
+
+### Expression data {.tabset}
+
+Only showing first 100 genes for document size.
+The count data consists of `r nrow(countTable)` genes with non-zero expression of `r ncol(countTable)` samples.
+The **`r params$species`** genes are mapped to **`r params$keytype`** names.
+
+#### Raw counts
+
+```{r}
+DT::datatable(data.frame(counts(dds))[1:100,], options = list(scrollX = TRUE))
+```
+
+#### Normalized counts
+
+```{r}
+DT::datatable(data.frame(counts(dds, normalized = TRUE))[1:100,], options = list(scrollX = TRUE))
+```
+
+
+# Output data
+
+Output data to **`r file.path(params$outputdir, params$output)`**
+
+```{r}
+if (!dir.exists(params$outputdir)) dir.create(params$outputdir)
+save(dds, file = file.path(params$outputdir, params$output))
+```
+
