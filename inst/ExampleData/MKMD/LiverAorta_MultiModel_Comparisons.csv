@@ -1,0 +1,8 @@
+,Description,Value
+1,Design,~DietTime
+2,Comparison,DietTime chow_06wk HFD_06wk
+3,Comparison,DietTime chow_12wk HFD_12wk
+4,Comparison,DietTime chow_18wk HFD_18wk
+5,Comparison,DietTime chow_24wk HFD_24wk
+6,Design,~TimeNum + Diet.x
+7,Comparison,Diet.x HFD chow

@@ -7,9 +7,9 @@
 ReadComparisons(COMPARISONFILE, sep = NULL)
 }
 \arguments{
-\item{COMPARISONFILE}{}
+\item{COMPARISONFILE}{Path to comparison file in .csv format(!)}
 
-\item{sep}{}
+\item{sep}{(Optional) Separator of file. Determined automatically if not given.}
 }
 \description{
 Read comparison file
