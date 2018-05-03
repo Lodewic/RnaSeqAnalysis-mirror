@@ -1,0 +1,153 @@
+---
+title: 'RnaSeq input data to DESeqDataSet'
+author: "Lodewic van Twillert"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    fig_caption: yes
+    theme: cerulean
+params:
+  echo:
+    value: FALSE
+    input: checkbox
+  dds:
+    label: "DESeqDataset .RData file"
+    value: NA
+    input: file
+  annotationdata:
+    label: "Gene annotation file"
+    value: NA
+    input: file
+bibliography: bibliography.bib
+---
+
+```{r include = FALSE}
+# If you are using knit_with_params() to render this document with a little shiny app for parameter input
+# You may have to reset the max requestsize in Shiny to upload files larger than 5mb.
+# Run the following command in your console or other environment to allow larger than 5mb files.
+
+# options(shiny.maxRequestSize=30*1024^2)
+```
+
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = params$echo)
+library(DT)
+library(RnaSeqAnalysis)
+library(DESeq2)
+# Default example data
+dds.file <- ifelse(params$dds == "NA",
+                   system.file("ExampleData/Liver_DDS.RData", package = "RnaSeqAnalysis"),
+                   params$dds)
+```
+
+```{r Datatable function}
+ShowDataTable <- function(df) {
+  DT::datatable(df,
+    class   = 'cell-border stripe compact hover',
+    escape  = F, selection = 'multiple',
+    extensions = "Scroller",
+    filter = "top",
+    options = list(
+      scrollY = "60vh",
+      scroller = TRUE,
+      deferRender = TRUE,
+      scrollX = TRUE,
+      autoWidth  = T,
+      # columnDefs = list(list(
+      #   targets  = 1:ncol(df),
+      #   render   = JS(
+      #     "function(data, type, row, meta) {",
+      #     "return type === 'display' && data.length > 50 ?",
+      #     "'<span title=\"' + data + '\">' +
+      #     data.substr(0, 50) + '...</span>' : data;", "}"))),
+      paging = TRUE, server = T)
+  )
+}
+```
+
+# Input options
+
+```{r}
+knitr::kable(data.frame(Value = unlist(params)))
+```
+
+# Rna-Seq data
+
+## DESeq2 dataset
+
+We use a package called [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html)[@deseq2] to do differential analysis with. This package also comes with a `DESeqDataSet` format to combine count, sample data. A DESeq2 dataset also combines count and sample data in a convenient way for exploratory/clustering analysis.
+
+```{r Load dds}
+# Cache creation and computation of DESeqDataSet?
+#   Estimating disperions and the VST may take a while.
+load(dds.file) # Loads "dds" into the environment
+vst.included <- !is.null(mcols(dds)$vst)
+```
+
+```{r Show dds}
+dds
+``` 
+
+`DESeq2` also includes a favored normalization method and a **Variance Stabilizing Transformation**. The count normalization is needed to minimize the effects of the differences in sequencing depth per sample. While there are many normalization methods, here we use the `DESeq2` method. 
+
+The Variance Stabilizing Transformation is a transformation similar to taking the *Log* of the counts, but more tailored to gene count data and also suited for zero-values. We leverage this transformation only for exploratory analysis, especially clustering analysis, but it is not used for differential analysis.
+
+```{r Annotate rnaSeq data, eval = FALSE}
+# If ANNOTATIONFILE is not specified then we use databases for annotation
+# This requires the SPECIES (i.e. 'Human', 'Mouse', etc.)
+# And the KEYTYPE (i.e. ENSEMBL, SYMBOL etc.)
+if (try(is.na(params$annotationdata)) | params$annotationdata == "NA") {
+  annotationData <- AnnotateCounts(countTable,
+                                   species = params$species,
+                                   key.type = params$keytype)
+# Otherwise we read the data from the specified ANNOTATIONFILE
+} else annotationData <- ReadAnnotation(params$annotationdata)
+```
+
+## Sample data {.tabset}
+
+The sample data describes subject features.
+We have sample data with a total of `r nrow(colData(dds))` samples with `r ncol(colData(dds))` features.
+Tables are shown with the [DataTable](https://rstudio.github.io/DT/) package[@DT].
+
+### Sample table
+
+```{r Show column data}
+# So this datatable needs a ton of options to display nicely
+#   The contents are more important!
+ShowDataTable(data.frame(colData(dds)))
+```
+
+### Sample feature names
+
+`r paste0("\t* ", names(colData(dds)), collapse = "\n")`
+
+## Expression data {.tabset}
+
+Only showing first 100 genes for document size.
+The count data consists of `r nrow(dds)` genes with non-zero expression of `r ncol(dds)` samples.
+
+Raw counts must be non-negative integer values, while the Normalized counts are
+normalized with `DESeq2` using a form of quantile normalization.
+
+### Raw counts
+
+```{r}
+ShowDataTable(data.frame(counts(dds))[1:100,])
+```
+
+### Normalized counts
+
+```{r}
+ShowDataTable(data.frame(counts(dds, normalized = TRUE))[1:100,])
+```
+
+
+# References
+
+
+

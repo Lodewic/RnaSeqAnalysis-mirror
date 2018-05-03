@@ -9,7 +9,6 @@ output:
     toc_float: true
     fig_caption: yes
     theme: cerulean
-    self_contained: true
 params:
   echo:
     value: FALSE

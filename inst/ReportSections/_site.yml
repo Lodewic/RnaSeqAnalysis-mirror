@@ -1,0 +1,14 @@
+name: Shire differential analysis on different rat tissues
+navbar:
+  title: RnaSeqAnalysis Test Site
+  left:
+  - text: RnaSeq Input Data
+    href: RnaSeq-Data-Input.html
+  - text: RnaSeq Input Data test 2
+    href: RnaSeq-Data-Input-2.html
+output_dir: _site
+output:
+  html_document:
+    lib_dir: site_libs
+    self_contained: no
+
