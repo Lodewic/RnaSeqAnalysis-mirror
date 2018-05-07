@@ -32,7 +32,6 @@ bibliography: bibliography.bib
 # options(shiny.maxRequestSize=30*1024^2)
 ```
 
-
 ```{r setup, include=FALSE, message = FALSE, warning = FALSE}
 knitr::opts_chunk$set(echo = params$echo)
 library(DT)
@@ -149,5 +148,6 @@ ShowDataTable(data.frame(counts(dds, normalized = TRUE))[1:100,])
 
 # References
 
-
-
+<!-- Automatic bibliography with BibTex for references made in this report -->
+<!-- For example, you can reference DESeq2 with [@deseq2] since this is what we labelled -->
+<!-- it in the bibliography.bib file used for references -->

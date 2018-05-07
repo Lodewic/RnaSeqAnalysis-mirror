@@ -28,16 +28,22 @@ DESeqAnalysis <- function(dds, comparisonFile, annotationData = NULL) {
                       model.index = model.ind)
   })
   
-  # Adjust p-value for every model so that p-value adjustment and 
-  # independent filtering is applied to all contrasts at once
-  #   For every model we then guarantee the same minimal expression cutoff
-  #   And more robust p-value adjustment to correct for multiple (ALL) comparisons
-  dds.contrasts <- lapply(dds.contrasts, AdjustDESeqContrasts)
+  ########################
+  ### RE-ADJUST P-VALUES WITH COMBINED CONTRASTS
+  ########################
+  # Apply pvalue adjustment to every top-level list element of dds.contrasts
+  #   named as model.contrasts internally
+  #   for each model individually.
+  adjusted.contrasts <- lapply(dds.contrasts, AdjustDESeqContrasts)
+  dds.contrasts <- lapply(adjusted.contrasts, function(x) x$model.contrasts)
+  # Metadata of pvalueAdjustment to plot and review results from independent filtering
+  # of the pvalues 
+  adjusted.meta <- lapply(adjusted.contrasts, function(x) x$meta)
   
   # Return a list of models and a list of contrasts separately
   #   TODO: Optionally make named lists if models/contrasts have names
   #   These names may be given in the comparisonfile in an additional column
-  return(list(Models = dds.models, Results = dds.contrasts))
+  return(list(Models = dds.models, Results = dds.contrasts, meta = adjusted.meta))
 }
 
 #' Title
@@ -126,14 +132,16 @@ GetDESeqContrasts <- function(dds.model, contrasts,
 #' @param padj.alpha 
 #' @param theta 
 #' @param pAdjustMethod 
+#' @param returnMeta
 #'
 #' @return
 #' @export
 #'
 #' @examples
-AdjustDESeqContrasts <- function(dds.contrasts, padj.alpha = 0.1,
+AdjustDESeqContrasts <- function(model.contrasts, padj.alpha = 0.1,
                                  theta = seq(from=0, to=0.5, by=0.01),
-                                 pAdjustMethod = "BH") {
+                                 pAdjustMethod = "BH",
+                                 returnMeta = TRUE) {
   require(dplyr)
   # Apply independent filtering to all contrasts at once for statistical
   # robustness
@@ -143,12 +151,12 @@ AdjustDESeqContrasts <- function(dds.contrasts, padj.alpha = 0.1,
   # theta <- seq(from=0, to=0.5, by=0.01)
   
   # Count number of rows/genes in every comparison
-  results.nrows <- unlist(lapply(dds.contrasts, nrow))
+  results.nrows <- unlist(lapply(model.contrasts, nrow))
   
   # Combine results by row-binding them as data.frames
   # Add column indicating name of contrast 
-  results.combined <- do.call(rbind, lapply(dds.contrasts, as.data.frame)) %>%
-    mutate(Contrast = rep(names(dds.contrasts), times = results.nrows)) %>%
+  results.combined <- do.call(rbind, lapply(model.contrasts, as.data.frame)) %>%
+    mutate(Contrast = rep(names(model.contrasts), times = results.nrows)) %>%
     mutate(Name = row.names(.)) %>%
     select(Contrast, everything())
   
@@ -165,17 +173,20 @@ AdjustDESeqContrasts <- function(dds.contrasts, padj.alpha = 0.1,
   # Now replace the adjusted p-values in the DESeqResults objects
   #   Otherwise we're left with simple data.frames which include less
   #   information!
-  for (i in seq_along(dds.contrasts)) {
-    ContrastName = names(dds.contrasts)[i]
-    dds.contrasts[[i]]$padj <- (results.combined %>% 
+  for (i in seq_along(model.contrasts)) {
+    ContrastName = names(model.contrasts)[i]
+    model.contrasts[[i]]$padj <- (results.combined %>% 
       filter(Contrast == ContrastName))$padj
     # Add metadata to DESeqResults object from the pvalueAdjustment()
-    metadata(dds.contrasts[[i]])$filterThreshold <- adjusted.pvalues$filterThreshold
-    metadata(dds.contrasts[[i]])$alpha <- adjusted.pvalues$alpha
+    metadata(model.contrasts[[i]])$filterThreshold <- adjusted.pvalues$meta$filterThreshold
+    metadata(model.contrasts[[i]])$alpha <- adjusted.pvalues$meta$alpha
   }
   
-  # Return same dds.contrasts excpet with new p-adjusted values and metadata
-  return(dds.contrasts)
+  # Return model.contrasts and pvalue adjustment metadata for plotting
+  if (returnMeta) {
+    return(list(model.contrasts = model.contrasts, meta = adjusted.pvalues$meta))
+  # Return same model.contrasts excpet with new p-adjusted values and metadata
+  } else return(model.contrasts)
 }
 
 #' Adjust p-values of DESeq2 results in data.frames
@@ -269,6 +280,6 @@ pvalueAdjustment <- function(res, filter, theta, alpha = 0.1,
   }
   
   res$padj <- padj
-  c(meta, list(results = res))
+  list(results = res, meta = meta)
 }
 

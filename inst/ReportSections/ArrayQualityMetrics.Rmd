@@ -1,0 +1,207 @@
+---
+title: 'ArrayQualityMetrics from DESeqDataSet'
+author: "Lodewic van Twillert"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    fig_caption: yes
+    theme: cerulean
+params:
+  echo:
+    value: FALSE
+    input: checkbox
+  project.name: 
+    label: "Short project name used for title of AQM report"
+    value: Rna-Seq Analysis
+    input: character
+  dds:
+    label: "DESeqDataset with calculated VST .RData file"
+    value: NA
+    input: file
+  int.groups:
+    label: "Groups of interest to color plots by (separated by a space)"
+    value: NA
+    input: character
+  aqm.dir:
+    label: "AQM Output directory"
+    value: AQM
+    input: file
+bibliography: bibliography.bib
+#' @param PROJECT.NAME Short name of the project, preferably a single word, to use for filenames and formatting.
+#' @param AQM.DIR Name of the sub-folder for the AQM output, a sub-directory of the total report file location. (Default "AQM")
+#' @param AQM.FORCE Wether to always force computation of the AQM output even if it already exists (Default TRUE). Might save a little time if re-running the .Rmd report without affecting the AQM output.
+#' @param INT.GROUPS Vector of sample feature names These features are used to color plots, with the first feature being the most important. Note that the feature names must match the column names in the Sample data exactly!
+---
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = params$echo)
+```
+
+```{r Load libraries, include=FALSE, message = FALSE, warning = FALSE}
+library(DT)
+library(RnaSeqAnalysis)
+library(DESeq2)
+library(arrayQualityMetrics)
+```
+
+```{r Datatable function}
+ShowDataTable <- function(df) {
+  DT::datatable(df,
+    class   = 'cell-border stripe compact hover',
+    escape  = F, selection = 'multiple',
+    extensions = "Scroller",
+    filter = "top",
+    options = list(
+      scrollY = "60vh",
+      scroller = TRUE,
+      deferRender = TRUE,
+      scrollX = TRUE,
+      autoWidth  = T,
+      # columnDefs = list(list(
+      #   targets  = 1:ncol(df),
+      #   render   = JS(
+      #     "function(data, type, row, meta) {",
+      #     "return type === 'display' && data.length > 50 ?",
+      #     "'<span title=\"' + data + '\">' +
+      #     data.substr(0, 50) + '...</span>' : data;", "}"))),
+      paging = TRUE, server = T)
+  )
+}
+```
+
+
+# Input options
+
+```{r}
+knitr::kable(data.frame(Value = unlist(params)))
+```
+
+## Input dataset {.tabset}
+
+```{r check some input parameters}
+# Default example data
+dds.file <- ifelse(params$dds == "NA",
+                   system.file("ExampleData/Liver_DDS.RData", package = "RnaSeqAnalysis"),
+                   params$dds)
+
+# Check input file
+if (!endsWith(tolower(dds.file), ".rdata") &
+    !endsWith(tolower(dds.file), ".rds")) stop("Not a valid .Rdata file as input!")
+```
+
+```{r Load deseqdataset}
+# Load input file
+load(dds.file) # Loads "dds" into the environment
+if (!exists("dds")) stop("Variable 'dds' or 'vsd' not found in input .RData file")
+```
+
+```{r Make or load variance-stabilizing transform}
+dds <- dds[1:1000,]
+# We might expect the vst to already be calculated and added to the rowData / Metadata
+# of the DESeqDataSet object. 
+vst.included <- !is.null(mcols(dds)$vst) | exists("vsd")
+# Alternatively the data may include a variable "vsd" that hold the 
+# variance-stabilizing transform of the DESeqDataSet, in which case we just use that
+if (!exists("vsd")) {
+  if (vst.included) {
+    vsd <- mcols(dds)$vst
+  } else {
+    vsd <- varianceStabilizingTransformation(dds)
+    warning("Variance-Stabilizing transformation was not pre-calculated.")
+  }
+}
+```
+
+The input data was given as a valid .RData file containing the data in `DESeqDataSet` format.
+We are only showing first 100 genes to decrease document size.
+The count data consists of `r nrow(dds)` genes with non-zero expression of `r ncol(dds)` samples.
+
+### Sample table
+
+```{r Show column data}
+# So this datatable needs a ton of options to display nicely
+#   The contents are more important!
+ShowDataTable(data.frame(colData(vsd)))
+```
+
+### Feature names
+
+The feature names must match the names given in `int.groups`.
+These groups of interest are used to color plots made by AQM.
+
+`r paste0("\t* ", names(colData(dds)), collapse = "\n")`
+
+### Raw counts
+
+```{r}
+ShowDataTable(data.frame(counts(dds))[1:100,])
+```
+
+### Normalized counts
+
+```{r}
+ShowDataTable(data.frame(counts(dds, normalized = TRUE))[1:100,])
+```
+
+### VST counts
+
+```{r}
+ShowDataTable(data.frame(assay(vsd))[1:100,])
+```
+
+
+For the clustering analyses and outlier tests done by AQM we use the variance-stabilizing transform from 
+[DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html)[@deseq2] package. The 
+variance-stabilizing transform has the same purpose as taking the log, to rescale the data because of the
+large spread in gene expression counts. Since we can't take the log of counts of zero we use
+an alternative method.
+
+# Array Quality Metrics 
+
+In this section an Array Quality Metrics report (AQM) is generated using the [arrayQualityMetrics package from Bioconductor.](https://bioconductor.org/packages/release/bioc/html/arrayQualityMetrics.html)[@AQM] This report does some basic analyses like PCA and three sample outlier detection tests originally intended
+for MicroArray data but still suitable to gene expression data. The analyses done using this out-of-the-box array quality metrics report are very general and only give an indication of possible outliers, however these are common methods that are easily explained.
+
+The output of this section is an .html file in the \code{`r params$aqm.dir`} sub-folder of the report directory. This file is also linked in the final report in this section but may also be opened by opening the .html file directly from your file explorer.
+
+```{r button link to file, results='asis'}
+cat(paste0('<a class="btn btn-primary" href="', file.path(".", params$aqm.dir, "index.html"),'" role="button">ArrayQualityMetrics report</a>'))
+```
+
+## Output
+
+```{r check params$int.groups}
+# Check int.groups to color plots
+#   Must match with sample feature names found in colData(vsd)
+int.groups <- params$int.groups
+if (int.groups != "NA") {
+  groups.valid <- int.groups %in% names(colData(vsd))
+  if (any(!groups.valid)) {
+    cat(sprintf("Some int.groups were not matched with sample feature names!\n",
+                    paste0(int.groups[!groups.valid], collapse = "\n")))
+    int.groups <- int.groups[-!groups.valid]
+  }
+} else int.groups <- character()
+```
+
+```{r Compute AQM, eval = TRUE, message = FALSE, warning=FALSE}
+# Create ExpressionSet from vst counts and annotated dataframe of sample data
+e=ExpressionSet(assay(vsd), AnnotatedDataFrame(as.data.frame(colData(vsd))))
+# Make title for aqm report
+aqm.title <- paste0("Array quality metrics for ", params$project.name)
+# Compute AQM (force=TRUE will overwrite existing AQM report)
+arrayQualityMetrics(e, intgroup = int.groups, 
+                    outdir = params$aqm.dir,
+                    reporttitle = aqm.title, 
+                    force = TRUE)
+```
+
+For exploratory analysis of the data we can use a report generated by `arrayQualityMetrics` to get a better understanding of the data. It can aid in identifying outliers, visualizing sequencing depth and assessing data quality. This file is located at,
+```{r {{section.ind}} - AQM Link, results='asis'}
+cat(paste0('[', file.path(params$aqm.dir, 'index.html'), '](', 
+           file.path(params$aqm.dir, 'index.html'), ')\n'))
+```
+
+## References

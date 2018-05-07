@@ -1,0 +1,77 @@
+<!-- COMPARISON {{design.i}}.{{contrast.i}} -->
+
+```{r {{section.ind}} - Set contrast params {{design.i}}.{{contrast.i}}}
+design.i <- {{design.i}}
+contrast.i <- {{contrast.i}}
+indices.char <- paste0(design.i, ".", contrast.i)
+count.string <- c("first", "second", "third", "fourth",
+                  "fifth", "sixth", "seventh", "eight", "ninth", "tenth")
+```
+
+```{r {{section.ind}} - Contrast title {{indices.char}}, results='asis'}
+# Parse contrasts as vector
+curr.contrast <- contrasts[[design.i]][contrast.i]
+curr.contrast <- unlist(strsplit(curr.contrast, " "))
+
+
+# Make into string to use as section subtitle
+if (length(curr.contrast) == 3) {
+  char.contrast <- paste0("**", curr.contrast[1], "**: ",
+                          curr.contrast[2], " VS ", curr.contrast[3])
+} else if (length(curr.contrast) == 1) {
+  char.contrast <- paste0("**", curr.contrast, "**")
+}
+cat(paste0('### Comparison {{design.i}}.{{contrast.i}}: ',
+           char.contrast))
+```
+
+The `r count.string[contrast.i]` comparison is `r char.contrast`. We can view the results found using DESeq2 based on the adjusted p-value (using Benjamin-Hochberg and independent filtering) less than `r PADJ.ALPHA`.
+
+```{r {{section.ind}} - Deseq summary {{indices.char}}}
+dds <- deseq.models[[design.i]]$model
+
+# Use the results from the combined results output
+dds.res <- combinedResults.list[[{{design.i}}]] %>%
+  filter(Contrast == names(single.model.results)[{{contrast.i}}])
+
+# Summary based on combined p-adjusted results
+summaryDESeqDF(dds.res,
+                filterThreshold = pvalueAdjustment.list[[design.i]]$filterThreshold,
+                alpha = PADJ.ALPHA)
+```
+
+```{r {{section.ind}} - MD Plot of result {{indices.char}}, eval = PLOT.GLIMMA}
+curr.model <- deseq.models[[design.i]]
+design.fname <- curr.model$design
+contrast.name <- curr.model[[2 + contrast.i]]$contrast
+
+html.name <- paste0('MD- ', TISSUE, ' Comp', indices.char)
+main.name <- paste0('MD-Plot ', TISSUE, ' ', design.fname, ": ",
+                    paste0(contrast.name, collapse = " "))
+
+md.plot <- plot.glimma.MD(dds, dds.res, annotationData,
+                          contrast = curr.contrast,
+                          glimma.alpha = GLIMMA.ALPHA,
+                          alpha = PADJ.ALPHA,
+                          sample.var = INT.GROUPS[1],
+                          folder = "Glimma",
+                          main = main.name,
+                          html = html.name,
+                          launch = FALSE)
+
+# Save plot file location
+glimma.md.loc <- paste0("./Glimma", '/', html.name, ".html",
+                        collapse = "")
+
+# Add model location to list of results
+deseq.models[[design.i]][[2 + contrast.i]][["glimma.md"]] <-
+  glimma.md.loc
+```
+
+```{r {{section.ind}} - Glimma link {{indices.char}}, results="asis", eval = PLOT.GLIMMA}
+cat("The results are best viewed using the MD plot using `Glimma` that shows differentially expressed in an interactive plot here\n")
+cat(paste0(' <a class="btn btn-primary" href="', glimma.md.loc,'" role="button">Glimma MD plot</a>'))
+```
+
+
+

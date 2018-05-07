@@ -10,6 +10,7 @@ annotationData <- AnnotateCounts(counts, species = "Mouse", key.type = "ENSEMBL"
                                  multiVals = "first")
 
 dds <- DESeqDataSetFromMatrix(counts, coldata, design = ~1)
+dds <- estimateSizeFactors(dds)
 # Save some computation time for this example
 #   Although you won't see a difference for pvalue adjustment per contrast or combined.
 # dds <- dds[1:1000,]
@@ -43,8 +44,13 @@ dds.contrasts <- lapply(1:n.designs, function(model.ind) {
 ### RE-ADJUST P-VALUES WITH COMBINED CONTRASTS
 ########################
 # Apply pvalue adjustment to every top-level list element of dds.contrasts
-#   A.k.a. for each model individually.
-dds.contrasts.new <- lapply(dds.contrasts, AdjustDESeqContrasts)
+#   named as model.contrasts internally
+#   for each model individually.
+adjusted.contrasts <- lapply(dds.contrasts, AdjustDESeqContrasts)
+dds.contrasts <- lapply(adjusted.contrasts, function(x) x$model.contrasts)
+# Metadata of pvalueAdjustment to plot and review results from independent filtering
+# of the pvalues 
+adjusted.meta <- lapply(adjusted.contrasts, function(x) x$meta)
 
 
 # Check results with
@@ -55,6 +61,6 @@ dds.contrasts.new <- lapply(dds.contrasts, AdjustDESeqContrasts)
 ### EVERYTHING IS ALREADY WRAPPED IN ONE FUNCTION
 ########################
 # Or .. just do:
-dds.analysis <- DESeqAnalysis(dds[1:1000,], comparisonFile = comparisonfile)
+dds.analysis <- DESeqAnalysis(dds[1:100,], comparisonFile = comparisonfile)
 # Note: a lot of default values that you can't set in this function(YET)
 #     like p-adjustment method or padj.alpha etc.
