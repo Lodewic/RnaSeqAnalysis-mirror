@@ -1,0 +1,60 @@
+```{r Set contrast params {{model.index}}.{{contrast.index}}}
+model.index <- {{model.index}}
+contrast.index <- {{contrast.index}}
+
+count.string <- c("first", "second", "third", "fourth",
+                  "fifth", "sixth", "seventh", "eight", "ninth", "tenth")
+```
+
+```{r Contrast title {{indices.char}}, results='asis'}
+# Get DESeqResults from the deseq2 analysis for current contrast
+dds.res <- model.contrasts[[contrast.index]]
+
+# Parse contrasts as vector
+curr.contrast <- model.comparisons[[contrast.index]] # model.comparisons is set in the _DifferentialAnalysis-model.Rmd file
+contrast.vec <- unlist(strsplit(curr.contrast, " "))
+contrast.char <- strsplit(
+        mcols(dds.res)$description[2], 
+        split = ": ")[[1]][2]
+```
+
+### Comparison {{model.index}}.{{contrast.index}}: `r contrast.char`
+
+```{r get model contrast description {{indices.char}}}
+# Same annotation you'd see for the results in the R console above the
+# results data.frame
+contrast.description <- paste0("\t* ",
+                               paste0(mcols(dds.res)$description, 
+                               collapse = "\n\t* "))
+```
+
+The `r count.string[contrast.index]` comparison is `r contrast.char`. We can view the results found using DESeq2 based on the adjusted p-value (using Benjamin-Hochberg and independent filtering) less than `r padj.alpha`.
+
+The contrast results can be described as follows,
+
+`r paste0(contrast.description)`
+
+#### Model results summary
+
+```{r Deseq summary {{indices.char}}}
+dds <- dds.model
+
+# Use the results from the combined results output
+dds.res <- model.contrasts[[{{contrast.index}}]]
+
+# Summary based on combined p-adjusted results
+summary.DESeqResults(dds.res, alpha = padj.alpha)
+```
+
+```{r MD Plot of result {{indices.char}}}
+# Save plot file location
+glimma.md.loc <- file.path(".", dds.analysis$MD.Plots[[model.index]][contrast.index])
+```
+
+```{r Glimma link {{indices.char}}, results="asis"}
+cat("The results are best viewed using the MD plot using `Glimma` that shows differentially expressed in an interactive plot here\n")
+cat(paste0(' <a class="btn btn-primary" href="', glimma.md.loc,'" role="button">Glimma MD plot</a>'))
+```
+
+
+

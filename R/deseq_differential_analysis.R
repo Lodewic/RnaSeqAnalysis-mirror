@@ -28,9 +28,8 @@ DESeqAnalysis <- function(dds, comparisonFile, annotationData = NULL) {
                       model.index = model.ind)
   })
   
-  ########################
-  ### RE-ADJUST P-VALUES WITH COMBINED CONTRASTS
-  ########################
+  #### RE-ADJUST P-VALUES WITH COMBINED CONTRASTS PER MODEL
+  ##
   # Apply pvalue adjustment to every top-level list element of dds.contrasts
   #   named as model.contrasts internally
   #   for each model individually.
@@ -43,7 +42,10 @@ DESeqAnalysis <- function(dds, comparisonFile, annotationData = NULL) {
   # Return a list of models and a list of contrasts separately
   #   TODO: Optionally make named lists if models/contrasts have names
   #   These names may be given in the comparisonfile in an additional column
-  return(list(Models = dds.models, Results = dds.contrasts, meta = adjusted.meta))
+  return(list(Models = dds.models,
+              Results = dds.contrasts, 
+              Comparisons = comparisons,
+              meta = adjusted.meta))
 }
 
 #' Title
@@ -113,7 +115,7 @@ GetDESeqContrasts <- function(dds.model, contrasts,
                                 alpha = padj.alpha)
     # Apply logfoldchange shrinkage to results if there are
     # interaction effects - because in that case betaPrior = False and
-    # therefore the lfc shrinkage was not done when estimating the model.
+    # therefore the lfc shrinkage was not done when estimating the model
     # if (interaction.effects) {
     #   contrast.results <- lfcShrink(deseq.models[[i]]$model,
     #                                 contrast = contrast,

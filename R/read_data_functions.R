@@ -11,35 +11,32 @@
 #' @export
 #'
 #' @examples
-getData <- function(countdata, coldata, species, keytype, annotationdata = NULL, calc.disps = TRUE, calc.vst = FALSE) {
+getData <- function(countdata, coldata, species = NULL, keytype = NULL, annotationdata = NULL,
+                    calc.sizeFactors = TRUE, calc.disps = TRUE, calc.vst = FALSE) {
   require(DESeq2)
   require(AnnotationDbi)
   
+  warning("calc.vst is nog longer used")
+  
+  if (!any(c(is.null(species), is.null(keytype), is.null(annotationData)))) {
+    warning("Annotation is no longer done with getData(). Use AnnotateCounts() instead")
+  }
   # Read count and sample data - should always be given
   counts.out <- ReadCounts(countdata)
   coldata.out <- ReadColData(coldata)
   
-  # Check if annotation data is given
-  tryAnnotation <- try(file.exists(annotationdata), silent = T)
-  # If error or file doesn't exist - don't try to read the data file
-  if (ifelse(class(tryAnnotation) == "try-error", FALSE, tryAnnotation)) annotation.out <- ReadAnnotation(annotationdata)
-  # if (!is.null(annotationdata)) annotation.out <- ReadAnnotation(annotationdata)
-  # If no annotation data is given - annotate counts using the AnnotationDbi package
-  else annotation.out <- AnnotateCounts(counts.out, species = species, key.type = keytype)
-  
   # Make into DESeq dataset
   #   Always calculate dispersions and variance-stabilized counts
   dds <- DESeqDataSetFromMatrix(counts.out, coldata.out, ~1)
-  dds <- estimateSizeFactors(dds)
+  if (calc.sizeFactors) dds <- estimateSizeFactors(dds)
   
-  if (calc.vst) {
-      # Calculate variance-stabilized counts
-      mcols(dds)$vst <- assay(varianceStabilizingTransformation(dds))
-      # Add annotation data to the metadata of the dds object
-      mcols(dds)$annotation <- annotation.out
-  }
   #     # Estimating dispersions before the vst sometimes given an error... not sure why.
   if (calc.disps) dds <- estimateDispersions(dds)
+  
+  # Add data.frame as annotation data to the metadata of the dds object
+  # !!!! ADDING NEW DATA as a data.frame TO MCOLS(DDS) BREAKS THE REFITTING STEP OF DESEQ() !!!!
+  # SO setting mcols(dds) or rowData(dds) (same thing) seems like the wrong way to go
+  # mcols(dds)$annotation <- annotation.out
   
   
   # Return a DESeqDataset with annotation data in the metadata (mcols())

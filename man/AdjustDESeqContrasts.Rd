@@ -4,17 +4,19 @@
 \alias{AdjustDESeqContrasts}
 \title{Title}
 \usage{
-AdjustDESeqContrasts(dds.contrasts, padj.alpha = 0.1, theta = seq(from = 0,
-  to = 0.5, by = 0.01), pAdjustMethod = "BH")
+AdjustDESeqContrasts(model.contrasts, padj.alpha = 0.1, theta = seq(from =
+  0, to = 0.5, by = 0.01), pAdjustMethod = "BH", returnMeta = TRUE)
 }
 \arguments{
-\item{dds.contrasts}{}
-
 \item{padj.alpha}{}
 
 \item{theta}{}
 
 \item{pAdjustMethod}{}
+
+\item{returnMeta}{}
+
+\item{dds.contrasts}{}
 }
 \description{
 Title

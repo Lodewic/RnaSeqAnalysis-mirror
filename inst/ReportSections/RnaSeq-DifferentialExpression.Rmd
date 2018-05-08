@@ -1,77 +1,189 @@
-<!-- COMPARISON {{design.i}}.{{contrast.i}} -->
+---
+title: 'Differential expression analysis with DESeq2'
+author: "Lodewic van Twillert"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    fig_caption: yes
+    theme: cerulean
+params:
+  echo:
+    value: FALSE
+    input: checkbox
+  project.name: 
+    label: "Short project name used for title of plots"
+    value: Rna-Seq Differential Analysis
+    input: character
+  dds.analysis:
+    label: "Differential expression analysis as .RData (dds.analysis variable expected)"
+    value: NA
+    input: file
+  annotationdata:
+    label: "Annotation data if not already present in dds.analysis"
+    value: NA
+    input: file
+bibliography: bibliography.bib
+---
 
-```{r {{section.ind}} - Set contrast params {{design.i}}.{{contrast.i}}}
-design.i <- {{design.i}}
-contrast.i <- {{contrast.i}}
-indices.char <- paste0(design.i, ".", contrast.i)
-count.string <- c("first", "second", "third", "fourth",
-                  "fifth", "sixth", "seventh", "eight", "ninth", "tenth")
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = params$echo)
 ```
 
-```{r {{section.ind}} - Contrast title {{indices.char}}, results='asis'}
-# Parse contrasts as vector
-curr.contrast <- contrasts[[design.i]][contrast.i]
-curr.contrast <- unlist(strsplit(curr.contrast, " "))
+```{r Load libraries, include=FALSE, message = FALSE, warning = FALSE}
+library(DT)
+library(RnaSeqAnalysis)
+library(DESeq2)
+library(arrayQualityMetrics)
+library(genefilter)
+library(tidyverse)
+library(plotly)
+```
 
-
-# Make into string to use as section subtitle
-if (length(curr.contrast) == 3) {
-  char.contrast <- paste0("**", curr.contrast[1], "**: ",
-                          curr.contrast[2], " VS ", curr.contrast[3])
-} else if (length(curr.contrast) == 1) {
-  char.contrast <- paste0("**", curr.contrast, "**")
+```{r Datatable function}
+ShowDataTable <- function(df) {
+  DT::datatable(df,
+    class   = 'cell-border stripe compact hover',
+    escape  = F, selection = 'multiple',
+    extensions = "Scroller",
+    filter = "top",
+    options = list(
+      scrollY = "60vh",
+      scroller = TRUE,
+      deferRender = TRUE,
+      scrollX = TRUE,
+      autoWidth  = T,
+      # columnDefs = list(list(
+      #   targets  = 1:ncol(df),
+      #   render   = JS(
+      #     "function(data, type, row, meta) {",
+      #     "return type === 'display' && data.length > 50 ?",
+      #     "'<span title=\"' + data + '\">' +
+      #     data.substr(0, 50) + '...</span>' : data;", "}"))),
+      paging = TRUE, server = T)
+  )
 }
-cat(paste0('### Comparison {{design.i}}.{{contrast.i}}: ',
-           char.contrast))
 ```
 
-The `r count.string[contrast.i]` comparison is `r char.contrast`. We can view the results found using DESeq2 based on the adjusted p-value (using Benjamin-Hochberg and independent filtering) less than `r PADJ.ALPHA`.
 
-```{r {{section.ind}} - Deseq summary {{indices.char}}}
-dds <- deseq.models[[design.i]]$model
+# Input options
 
-# Use the results from the combined results output
-dds.res <- combinedResults.list[[{{design.i}}]] %>%
-  filter(Contrast == names(single.model.results)[{{contrast.i}}])
-
-# Summary based on combined p-adjusted results
-summaryDESeqDF(dds.res,
-                filterThreshold = pvalueAdjustment.list[[design.i]]$filterThreshold,
-                alpha = PADJ.ALPHA)
+```{r}
+knitr::kable(data.frame(Value = unlist(params)))
 ```
 
-```{r {{section.ind}} - MD Plot of result {{indices.char}}, eval = PLOT.GLIMMA}
-curr.model <- deseq.models[[design.i]]
-design.fname <- curr.model$design
-contrast.name <- curr.model[[2 + contrast.i]]$contrast
+## Input data {.tabset}
 
-html.name <- paste0('MD- ', TISSUE, ' Comp', indices.char)
-main.name <- paste0('MD-Plot ', TISSUE, ' ', design.fname, ": ",
-                    paste0(contrast.name, collapse = " "))
+```{r check some input parameters}
+# Default example data
+dds.file <- ifelse(params$dds.analysis == "NA",
+                   system.file("ExampleData/AnalysisOutput/Liver_DDS_Analysis.RData", package = "RnaSeqAnalysis"),
+                   params$dds.analysis)
 
-md.plot <- plot.glimma.MD(dds, dds.res, annotationData,
-                          contrast = curr.contrast,
-                          glimma.alpha = GLIMMA.ALPHA,
-                          alpha = PADJ.ALPHA,
-                          sample.var = INT.GROUPS[1],
-                          folder = "Glimma",
-                          main = main.name,
-                          html = html.name,
-                          launch = FALSE)
+# Default example data
+annotation.file <- ifelse(params$annotationdata == "NA",
+                   system.file("ExampleData/AnalysisOutput/Liver_DDS_Annotation.RData", package = "RnaSeqAnalysis"),
+                   params$annotationdata)
 
-# Save plot file location
-glimma.md.loc <- paste0("./Glimma", '/', html.name, ".html",
-                        collapse = "")
-
-# Add model location to list of results
-deseq.models[[design.i]][[2 + contrast.i]][["glimma.md"]] <-
-  glimma.md.loc
+# Check input file
+if (!endsWith(tolower(dds.file), ".rdata") &
+    !endsWith(tolower(dds.file), ".rds")) stop("Not a valid .Rdata file as input!")
 ```
 
-```{r {{section.ind}} - Glimma link {{indices.char}}, results="asis", eval = PLOT.GLIMMA}
-cat("The results are best viewed using the MD plot using `Glimma` that shows differentially expressed in an interactive plot here\n")
-cat(paste0(' <a class="btn btn-primary" href="', glimma.md.loc,'" role="button">Glimma MD plot</a>'))
+```{r Load deseqdataset}
+# Load input file
+load(dds.file) # Loads "dds" into the environment
+if (!exists("dds.analysis")) stop("Variable 'dds.analysis' not found in input .RData file")
 ```
 
+```{r Load annotation data if given}
+if (params$annotationdata != "NA") {
+  if (exists("annotationData")) {
+    warning(sprintf("Annotation data already given in %s! Will be overwritten by %s.",
+            dds.file, params$annotationdata))
+  }
+  if (endsWith(tolower(params$annotationdata), ".rdata") |
+             endsWith(tolower(params$annotationdata), ".rds")) {
+    load(params$annotationdata)
+    if (!exists("annotationData")) warning(sprintf(
+      "annotationData not found as 'annotationData' variable in %s"),
+      params$annotationdata)
+  } else annotationData <- ReadAnnotation(params$annotationdata)
+} else if (!exists("annotationData") & !is.null(mcols(dds)$annotation)) {
+  annotationData <- mcols(dds)$annotation
+} else {
+  annotationData <- NULL
+  warning("Annotation data not included")
+}
+```
+
+```{r "Compute Glimma plots if they dont exist yet"}
+# Compute MD plots and store file locations in dds.analysis$MD.Plot
+#   Unless this field already exists, then we assume plots are pre-computed
+if (!is.null(dds.analysis$MD.Plot)) {
+  cat("Using pre-calculated Glimma MD plots.\n")
+} else {
+  cat("Creating Glimma MD plots...\n")
+  # Compute Glimma MD plots
+  #   Save file locations in a list in dds.analysis$MD.Plot
+  dds.analysis <- PlotDESeqAnalysis(dds.analysis, annotationData,
+                                    verbose = 1)
+  # You can find the filenames in dds.analysis$MD.Plots
+}
+```
+
+# Differential analysis Glimma plots
+
+Quick links to Glimma MD plots.
+Scroll further for more details.
+
+```{r List links to Glimma MD-plots, results='asis'}
+for (model.index in seq_along(dds.analysis$MD.Plots)) {
+  cat(sprintf("Model %i plots\n\n", model.index))
+  for (plot.index in seq_along(dds.analysis$MD.Plots[[model.index]])) {
+    dds.res <- dds.analysis$Results[[model.index]][[plot.index]]
+    contrast.name <- strsplit(mcols(dds.res)$description[2], ": ")[[1]][2]
+    plot.index <- names(dds.analysis$Results[[model.index]])[plot.index]
+    plot.name <- paste(plot.index, contrast.name, collapse = ": ")
+    glimma.md.loc <- dds.analysis$MD.Plots[[model.index]][plot.index]
+  
+    # Paste links into documents
+    # Relative links to plot files
+    cat(paste0("* [", plot.name, "](",
+               glimma.md.loc, ")\n"))
+    
+  } 
+  cat("\n")
+}
+```
+
+# Differential analysis with DESeq2 {.tabset}
+
+```{r Add model sections}
+# Paths to DESeq2 analysis .Rmd files
+# Every contrast gets its own 'section' and as such was hard to add to the
+# GenerateReport() function for now.
+deseq.model.rmd <- system.file("ReportSections/_DifferentialAnalysis-Model.Rmd", package = "RnaSeqAnalysis")
+# deseq.model.rmd <- "_DifferentialAnalysis-Model.Rmd" # Uncomment for testing local section
+deseq.contrast.rmd <- system.file("ReportSections/_DifferentialAnalysis-Contrast.Rmd", package = "RnaSeqAnalysis")
+# deseq.contrast.rmd <- "_DifferentialAnalysis-Contrast.Rmd" # Uncomment for testing local section
+deseq.chunks <- list()
+
+# Loop over all designs and their contrasts
+for (model.index in seq_along(dds.analysis$Models)) {
+  # Knit_expand model chunk with given model index
+  #   Includes a header and short intro of the model
+  #   Each model also includes all the model contrast results!
+  deseq.model.chunk <- knitr::knit_expand(deseq.model.rmd,
+                                          model.index = model.index,
+                                          contrast.rmd = deseq.contrast.rmd)
+  # Append model chunk string
+  deseq.chunks <- append(deseq.chunks, deseq.model.chunk)
+}
+```
+
+`r paste(knitr::knit_child(text = unlist(deseq.chunks)), collapse = '\n')`
 
 

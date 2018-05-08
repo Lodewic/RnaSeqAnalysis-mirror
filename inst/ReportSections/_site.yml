@@ -6,9 +6,33 @@ navbar:
     href: RnaSeq-Data-Input.html
   - text: ArrayQualityMetrics
     href: ArrayQualityMetrics.html
+  - text: Differential analysis
+    href: RnaSeq-DifferentialExpression.html
 output_dir: _site
 output:
   html_document:
+    theme: cerulean
     lib_dir: site_libs
     self_contained: no
+output_files:
+ RnaSeq-Data-Input.html:
+   src: "RnaSeq-Data-Input.Rmd"
+   params:
+     echo: false
+     dds: "Data/Liver_DDS.RData"
+     annotationdata: "Data/Liver_DDS_Annotation.RData"
+ ArrayQualityMetrics.html:
+   src: "ArrayQualityMetrics.Rmd"
+   params:
+    echo: false
+    project.name: "Test Reports"
+    dds: "Data/Liver_DDS.RData"
+    int.groups: "Diet.x TimeNum"
+    aqm.dir: "AQM"
+ RnaSeq-DifferentialExpression.html:
+    src: "RnaSeq-DifferentialExpression.Rmd"
+    params: 
+      echo: false
+      dds.analysis: "Data/Liver_DDS_Analysis.RData"
+      annotationdata: "Data/Liver_DDS_Annotation.RData"
 

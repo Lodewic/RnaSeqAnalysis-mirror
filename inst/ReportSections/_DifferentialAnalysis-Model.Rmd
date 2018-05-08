@@ -1,0 +1,154 @@
+```{r get Design as character {{model.index}}}
+model.design <- dds.analysis$Comparison$designs[[{{model.index}}]]
+design.char <- as.character(model.design)[-1]
+```
+
+## Model {{model.index}}: `r design.char` {.tabset}
+
+```{r}
+count.string <- c("first", "second", "third", "fourth",
+                  "fifth", "sixth", "seventh", "eight", "ninth", "tenth")
+# Extract current model results for readability
+dds.model <- dds.analysis$Models[[{{model.index}}]]
+
+model.contrasts <- dds.analysis$Results[[{{model.index}}]]
+model.comparisons <- dds.analysis$Comparisons$contrasts[[{{model.index}}]]
+meta <- dds.analysis$meta[[{{model.index}}]]
+p.alpha <- meta$alpha
+padj.alpha <- meta$alpha
+```
+
+The `r count.string[{{model.index}}]` model design is `r design.char` and is used in a Generalized Linear Model (GLM) by DESeq2. Each of the summed variables shown is controlled for in the model by estimating an individual effect of each of the categories in the variables in the design.
+
+### Combined contrasts p-adjustment
+
+#### Combined contrast summary
+
+```{r Compute independent filtering for combined results {{model.index}}}
+# Combine results by row-binding them as data.frames
+# Add column indicating name of contrast 
+results.combined.df <- CombineModelContrasts(model.contrasts,
+                                           model.comparisons)
+```
+
+Here is a summary of all contrasts when independent filtering and p-value adjustment is applied to all results simultaneously. 
+  
+  * Significance level for pvalue is: **pvalue < `r p.alpha`**
+  * Significance level for p-adjusted: **padj < `r padj.alpha`**
+
+```{r Summary of results per contrast {{model.index}}}
+summary.combined <- results.combined.df %>% group_by(Contrast) %>%
+  summarise(Down.pvalue = sum(pvalue < p.alpha & log2FoldChange < 0, na.rm=T),
+          Up.pvalue = sum(pvalue < p.alpha & log2FoldChange > 0, na.rm=T),
+          Down.padj = sum(padj < padj.alpha & log2FoldChange < 0, na.rm=T),
+          Up.padj = sum(padj < padj.alpha & log2FoldChange > 0, na.rm=T)) %>%
+  arrange(as.numeric(gsub("Comp", "", gsub("\\.", "", Contrast)))) %>%
+  mutate(Comparison = unlist(model.comparisons)) %>%
+  select(Contrast, Comparison, everything())
+
+DT::datatable(summary.combined)
+```
+
+Combining all the contrast results is a more robust approach specifically for adjusting p-values all at once. The number of differentially expressed genes, determined by the adjusted p-value, may differ if we look at all contrasts at once than if we look at every contrast individually.
+
+```{r Combined results summary {{model.index}}}
+SummariseModelResults(dds.analysis, model.index = {{model.index}})
+```
+
+#### Independent filtering
+
+For more robust statistical testing we should combine all the contrast results, mainly their p-value outputs, and apply the p-value adjustment to all statistical tests at once. If we only adjust the p-values for every contrast individually the resulting adjusted p-values will not be adjusted strictly enough. Additionally, the independent filtering step of the p-value adjustment is done separately per contrast as well which results in a different mean expression filter cutoff everytime which makes the comparison between contrasts less interpretable.
+
+Independent filtering works by using a filter statistic, in this case we use the **normalized mean expression as filter statistic**. The filter statistic is used to find the filter that should be applied to maximize the number of DEG's at a given significance level of the p-adjusted value. We use a *P-adjusted significance level of `r padj.alpha`. Then, we test the number of DEG's for multiple quantiles of the normalized mean expression and find the optimal quantile to maximize the number of DEG's. However, a soft threshold is then applied to avoid over-aggresive filtering.
+
+The resulting filter was set at removing **Genes with mean expression < `r floor(meta$filterThreshold)`** from the p-value adjustment and as such these genes should not be considered for follow-up analysis. This is equal to the **`r round(meta$filterTheta * 100 ,1)`% quantile** of the normalized mean gene expression.
+
+```{r Rejection plot {{model.index}}, fig.cap = "Figure 3: Left panel: the plot shows the number of rejections (i.e. genes detected as differentially expressed) as a function of the FDR threshold (x-axis) and the filtering cutoff theta (line colours, specified as quantiles of the distribution of the filter statistic)", eval = FALSE}
+layout(matrix(c(1,2, 1, 2), 2, 2, byrow = TRUE))
+
+# TODO:
+#   Make this rejection plot from pre-calculated data
+#   Not yet included in dds.analysis
+rejection_plot(filtered_p(filter = results.combined.df$baseMean,
+                                       test = results.combined.df$pvalue,
+                                       theta = seq(from=0,
+                                                   to=0.5,
+                                                   by=0.1),
+                                       method = 'BH'),
+               main = "Indepent filtering rejections",
+               sub = "by filtered mean expression quantile")
+
+plot(dds.analysis$meta[[{{model.index}}]]$filterNumRej, type="l",
+     xlab= "Mean expression quantile", ylab="number of rejections")
+```
+
+
+
+```{r  Mean filter rejections plot {{model.index}}, fig.cap="Filter of mean expression by independent filtering using Benjamin-Hochberg p-value adjustment. We maximize the number of differentials (with a soft-threshold on the filter)"}
+
+label.y <- max(meta$filterNumRej$numRej) - 0.8 * (max(meta$filterNumRej$numRej) - min(meta$filterNumRej$numRej))
+label.x <- quantile(results.combined.df$baseMean,
+                    meta$filterTheta + 0.15)
+rejected.count <- sum(results.combined.df$baseMean < meta$filterThreshold &
+                        !is.na(results.combined.df$pvalue))
+
+ggplotly(meta$filterNumRej %>% ggplot(aes(x = theta, y = numRej)) +
+  geom_line() +
+  geom_vline(xintercept = meta$filterTheta, col = "red", alpha = 0.8) +
+  annotate(geom = "text", x = label.x, y =label.y,
+                label = sprintf("Expression filter: mean < %s quantile\nRemoved genes: %s",
+                                floor(meta$filterTheta), rejected.count),
+           color = "blue") +
+  labs(x = "Mean expression quantile cutoff",
+       y = "Number of DEG's") + ggtitle("# of DEG's with baseMean filtering") +
+    xlim(c(0, 0.6))
+)
+  
+```
+
+```{r Rejection histogram {{model.index}}}
+pass <- results.combined.df$baseMean > meta$filterThreshold
+
+# 
+if (all(c(TRUE,  FALSE) %in% unique(pass))) {
+  # Create two simple histograms of genes that do/don't pass the filter
+  h1 = hist(results.combined.df$pvalue[!pass], breaks=seq(0,1,length.out = 50),  plot=FALSE) 
+  h2 = hist(results.combined.df$pvalue[pass], breaks=seq(0,1,length.out = 50), plot=FALSE) 
+  colori <- c(`do not pass`="khaki", `pass`="powderblue")
+  
+  # Histogram
+  barplot(height = rbind(h1$counts, h2$counts),
+          beside = FALSE, col = colori, space = 0,
+          main = "Histogram of genes that pass expression filter, sorted by p-value",
+          xlab = "pvalue",
+          ylab="frequency") 
+  text(x = c(0, length(h1$counts)), y = 0,
+       label = paste(c(0,1)), adj = c(0.5,1.7),
+       xpd=NA) 
+  legend("topright", fill=rev(colori), legend=rev(names(colori)))
+}
+```
+
+```{r Add model contrasts {{model.index}}}
+# Paths to DESeq2 analysis .Rmd files
+# Every contrast gets its own 'section' and as such was hard to add to the
+# GenerateReport() function for now.
+deseq.contrast.chunks <- list()
+
+# Loop over all designs and their contrasts
+for (contrast.index in seq_along(model.contrasts)) {
+  # Knit_expand model chunk with given model index
+  #   Includes a header and short intro of the model
+  #   Each model also includes all the model contrast results!
+  deseq.contrast.chunk <- knitr::knit_expand(deseq.contrast.rmd,
+                                          model.index = {{model.index}},
+                                          contrast.index = contrast.index,
+                                          indices.char = paste0({{model.index}},
+                                                                ".", 
+                                                                contrast.index))
+  # Append model chunk string
+  deseq.contrast.chunks <- append(deseq.contrast.chunks, deseq.contrast.chunk)
+}
+```
+
+`r paste(knitr::knit_child(text = unlist(deseq.contrast.chunks)), collapse = '\n')`
