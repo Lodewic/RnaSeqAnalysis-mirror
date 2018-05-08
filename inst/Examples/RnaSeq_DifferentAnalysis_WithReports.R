@@ -43,14 +43,14 @@ library(DESeq2)
 # Preferably you'll want the .Rmd section files to be one folder
 # above the data analysis output. This makes is much easier to use render_site()
 # later correctly.
-output.dir <- "AnalysisOutput"
-data.subdir <- "Data"
+output.dir <- "" # Just set your working directory 
+setwd(output.dir)
+output.data.dir <- "Data"
 
 # Set AQM project title and plots to color
 int.groups <- "Diet.x TimeNum" # feature names separated by spaces
 project.name <- "Test Pipeline Analysis" # Title for aqm report
 
-output.data.dir <- file.path(output.dir, data.subdir)
 if (!dir.exists(output.data.dir)) {
   dir.create(output.data.dir, recursive = T)
 }
@@ -59,7 +59,7 @@ if (!dir.exists(output.data.dir)) {
 # A bibtex .bib bibliography file for references in all report sections
 # This needs to be present before rendering the first report (That uses it)
 file.copy(system.file("ReportSections/bibliography.bib", package = "RnaSeqAnalysis"),
-          file.path(output.dir, "bibliography.bib"))
+          "bibliography.bib")
 
 
 ##############################################
@@ -100,12 +100,12 @@ save(annotationData, file = file.path(output.data.dir, "Liver_DDS_Annotation.RDa
 # Make report section with dds output
 # Data input section
 file.copy(system.file("ReportSections/RnaSeq-Data-Input.Rmd", package = "RnaSeqAnalysis"),
-          file.path(output.dir, "RnaSeq-Data-Input.Rmd"))
+          "RnaSeq-Data-Input.Rmd")
 # # Render reports with parameters
-input.report <- rmarkdown::render(file.path(output.dir, "RnaSeq-Data-Input.Rmd"),
+input.report <- rmarkdown::render("RnaSeq-Data-Input.Rmd",
                                   params = list(
                                     echo = FALSE,
-                                    dds = file.path(data.subdir, "Liver_DDS.RData"),
+                                    dds = file.path(output.data.dir, "Liver_DDS.RData"),
                                     annotationdata = file.path(output.data.dir, "Liver_DDS_Annotation.RData")),
                                   envir = new.env())
 
@@ -117,7 +117,7 @@ input.report <- rmarkdown::render(file.path(output.dir, "RnaSeq-Data-Input.Rmd")
 ##  Preferably we create the AQM report from a function and just pass the 
 ##  output folder directory as a variable to the report.
 file.copy(system.file("ReportSections/ArrayQualityMetrics.Rmd", package = "RnaSeqAnalysis"),
-          file.path(output.dir, "ArrayQualityMetrics.Rmd"))
+          "ArrayQualityMetrics.Rmd")
 # Array quality metrics report
 aqm.report <- rmarkdown::render(file.path(output.dir, "ArrayQualityMetrics.Rmd"),
                                 params = list(
@@ -143,21 +143,25 @@ dds.analysis <- DESeqAnalysis(dds, comparisonFile = comparisonfile)
 ## PLOT RESULTS
 ## using Glimma MD plots
 ## Output is dds.analysis with new list dds.analysis$MD.Plots with md-plot file locations
-dds.analysis <- PlotDESeqAnalysis(dds.analysis, annotationData = annotationData) # adds dds.analysis$MD.Plots
+dds.analysis <- PlotDESeqAnalysis(dds.analysis, annotationData = annotationData, 
+                                  output.dir = output.dir,
+                                  folder = "Glimma")
+# adds dds.analysis$MD.Plots - you can skip this step and then the plots will be
+# generated when making the report.
 
 # Save analysis output
 save(dds.analysis, file = file.path(output.data.dir, "Liver_DDS_Analysis.RData"))
 
 # Copy report file
 file.copy(system.file("ReportSections/RnaSeq-DifferentialExpression.Rmd", package = "RnaSeqAnalysis"),
-          file.path(output.dir, "RnaSeq-DifferentialExpression.Rmd"))
+          "RnaSeq-DifferentialExpression.Rmd")
 
 # Differential analysis report
-diff.report <- rmarkdown::render(file.path(output.dir, "RnaSeq-DifferentialExpression.Rmd"),
+diff.report <- rmarkdown::render("RnaSeq-DifferentialExpression.Rmd",
                                  params = list(
                                    echo = FALSE,
-                                   dds.analysis = file.path(data.subdir, "Liver_DDS_Analysis.RData"),
-                                   annotationdata = file.path(data.subdir, "Liver_DDS_Annotation.RData")),
+                                   dds.analysis = file.path(output.data.dir, "Liver_DDS_Analysis.RData"),
+                                   annotationdata = file.path(output.data.dir, "Liver_DDS_Annotation.RData")),
                                  envir = new.env())
 
 # So is saving the MD-Plot links along with the dds.analysis a good idea?
@@ -181,10 +185,10 @@ diff.report <- rmarkdown::render(file.path(output.dir, "RnaSeq-DifferentialExpre
 # Index homepage for render_site()
 #   Need something to test with so don't mind the contents for now
 file.copy(system.file("ReportSections/index.Rmd", package = "RnaSeqAnalysis"),
-          file.path(output.dir, "index.Rmd"))
+          "index.Rmd")
 # Example _site.yml file
 file.copy(system.file("ReportSections/_site.yml", package = "RnaSeqAnalysis"),
-          file.path(output.dir, "_site.yml"))
+          "_site.yml")
 
 ## 
 ## Render a website with parameters
@@ -193,5 +197,5 @@ file.copy(system.file("ReportSections/_site.yml", package = "RnaSeqAnalysis"),
 ##  The parameter and website are defined in _site.yml
 # All inputs and outputs are defined in _site.yml
 library(rmarkdown)
-RnaSeqAnalysis::render_site(output.dir, envir = new.env())
+RnaSeqAnalysis::render_site(envir = new.env())
 

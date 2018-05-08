@@ -40,7 +40,7 @@ n.designs <- length(designs)
 # Estimate the DESeq model for every design
 dds.input <- dds
 mcols(dds.input)$annotation <- NULL
-dds.models <- lapply(designs, EstimateDESeqModel, dds = dds.input)
+dds.models <- lapply(designs, EstimateDESeqModel, dds = dds)
 
 # Get individual contrasts per model
 #   The p-value adjustment is done per contrast
