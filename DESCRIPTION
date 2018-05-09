@@ -6,6 +6,21 @@ Authors@R: c(
     person("Lodewic", "van Twillert", , "lodewic.vantwillert@tno.nl", role = c("aut", "cre")),
     person("Everton", "Souto Lima", ,"everton.soutolima@tno.nl", role = "aut"))
 Description: Collection of functions used for rna-seq and microbiome analysis.
+biocViews:
+    DifferentialExpression,
+    GeneExpression,
+    ReportWriting,
+    RNASeq,
+    Sequencing,
+    Visualization
+Imports:
+    DESeq2,
+    pathview,
+    AnnotationDbi,
+    plotly,
+    rmarkdown,
+    tidyverse,
+    knitr
 License: License?
 Encoding: UTF-8
 LazyData: true

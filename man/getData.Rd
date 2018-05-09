@@ -4,8 +4,9 @@
 \alias{getData}
 \title{Title}
 \usage{
-getData(countdata, coldata, species, keytype, annotationdata = NULL,
-  calc.disps = TRUE, calc.vst = FALSE)
+getData(countdata, coldata, species = NULL, keytype = NULL,
+  annotationdata = NULL, calc.sizeFactors = TRUE, calc.disps = TRUE,
+  calc.vst = FALSE)
 }
 \arguments{
 \item{countdata}{Filename of count / expression data in a format where rownames are genes/features and columns are samples.}
