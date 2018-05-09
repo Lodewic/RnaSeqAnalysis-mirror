@@ -20,7 +20,8 @@ Imports:
     plotly,
     rmarkdown,
     tidyverse,
-    knitr
+    knitr,
+    optparse
 License: License?
 Encoding: UTF-8
 LazyData: true
